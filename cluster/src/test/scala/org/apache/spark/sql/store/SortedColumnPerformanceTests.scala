@@ -165,21 +165,15 @@ class SortedColumnPerformanceTests extends ColumnTablesTestBase {
     val colTableName = "colDeltaTable"
     val joinTableName = "joinDeltaTable"
     val numElements = 100000000
-    val numTimesInsert = 1
-    val numTimesUpdate = 1
 
-    val totalElements = (numElements * 0.6 * numTimesUpdate +
-        numElements * 0.4 * numTimesUpdate).toLong
+    val totalElements = numElements.toLong
     val numBuckets = 4
     val numIters = 100
 
-    SortedColumnTests.verfiyInsertDataExists(session, numElements, numTimesInsert)
-    SortedColumnTests.verfiyUpdateDataExists(session, numElements, numTimesUpdate)
+    SortedColumnTests.verfiyFullInsertDataExists(session, numElements)
     val dataFrameReader : DataFrameReader = session.read
-    val insertDF: DataFrame = dataFrameReader.load(SortedColumnTests.filePathInsert(numElements,
-      numTimesInsert))
-    val updateDF: DataFrame = dataFrameReader.load(SortedColumnTests.filePathUpdate(numElements,
-      numTimesUpdate))
+    val fullInsertDF: DataFrame =
+      dataFrameReader.load(SortedColumnTests.filePathFullInsert(numElements))
 
     def prepare(): Unit = {
       SortedColumnTests.createColumnTable(session, colTableName, numBuckets, numElements)
@@ -188,18 +182,8 @@ class SortedColumnPerformanceTests extends ColumnTablesTestBase {
       try {
         session.conf.set(Property.ColumnBatchSize.name, "24M") // default
         session.conf.set(Property.ColumnMaxDeltaRows.name, "100")
-        var j = 0
-        while (j < numTimesInsert) {
-          insertDF.write.insertInto(colTableName)
-          insertDF.write.insertInto(joinTableName)
-          j += 1
-        }
-        j = 0
-        while (j < numTimesInsert) {
-          updateDF.write.putInto(colTableName)
-          updateDF.write.putInto(joinTableName)
-          j += 1
-        }
+        fullInsertDF.write.insertInto(colTableName)
+        fullInsertDF.write.insertInto(joinTableName)
       } finally {
         session.conf.unset(Property.ColumnBatchSize.name)
         session.conf.unset(Property.ColumnMaxDeltaRows.name)
@@ -210,7 +194,7 @@ class SortedColumnPerformanceTests extends ColumnTablesTestBase {
     var iter = 1
     benchmark.addCase("Master", numIters, prepare) { _ =>
       SortedColumnPerformanceTests.executeQuery_JoinQuery(session, colTableName, joinTableName,
-        iter, numTimesInsert, numTimesUpdate = 1)
+        iter)
       iter += 1
     }
     benchmark.run()
@@ -294,7 +278,7 @@ object SortedColumnPerformanceTests {
   }
 
   def executeQuery_JoinQuery(session: SnappySession, colTableName: String, joinTableName: String,
-      iterCount: Int, numTimesInsert: Int, numTimesUpdate: Int): Unit = {
+      iterCount: Int): Unit = {
     val query = s"select AVG(A.id), COUNT(B.id) " +
         s" from $colTableName A inner join $joinTableName B where A.id = B.id"
     val result = session.sql(query).collect()

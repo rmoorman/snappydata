@@ -90,6 +90,20 @@ object SortedColumnTests extends Logging {
     }
   }
 
+  def filePathFullInsert(size: Long) : String = s"$baseDataPath/full_insert${size}"
+  def verfiyFullInsertDataExists(snc: SnappySession, size: Long) : Unit = {
+    val filePath = SortedColumnTests.filePathFullInsert(size)
+    val dataDirInsert = new File(filePath)
+    if (!dataDirInsert.exists()) {
+      dataDirInsert.mkdir()
+      val tableName = s"full_insert_table_${size}"
+      snc.sql(s"create EXTERNAL TABLE $tableName(id int, addr string, status boolean)" +
+          s" USING parquet OPTIONS(path '$filePath')")
+      snc.range(size).selectExpr("id", "concat('addr'," + "cast(id as string))",
+        "case when (id % 2) = 0 then true else false end").write.insertInto(s"$tableName")
+    }
+  }
+
   def filePathUpdate(size: Long, multiple: Int) : String = s"$baseDataPath/update${size}_$multiple"
   def verfiyUpdateDataExists(snc: SnappySession, size: Long, multiple: Int = 1) : Unit = {
     val dataDirUpdate = new File(SortedColumnTests.filePathUpdate(size, multiple))
