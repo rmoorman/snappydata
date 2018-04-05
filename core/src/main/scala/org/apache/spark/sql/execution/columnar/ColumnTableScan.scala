@@ -86,6 +86,10 @@ private[sql] final case class ColumnTableScan(
   @transient private val MAX_SCHEMA_LENGTH = 40
 
   override lazy val outputOrdering: Seq[SortOrder] = {
+    val buffer = new ArrayBuffer[SortOrder](partitionColumns.size)
+    partitionColumns.map(buffer += SortOrder(_, Ascending))
+    buffer
+  } /* {
     val buffer = new ArrayBuffer[SortOrder](2)
     // sorted on [batchId, ordinal (position within batch)] for update/delete
     output.foreach {
@@ -97,7 +101,7 @@ private[sql] final case class ColumnTableScan(
       case _ =>
     }
     buffer
-  }
+  } */
 
   override def getMetrics: Map[String, SQLMetric] = {
     if (sqlContext eq null) Map.empty
